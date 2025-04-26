@@ -1,6 +1,7 @@
 {
   "name": "why",
   "displayName": "why",
+  "publisher": "why",
   "description": "Allow developers to add and view contextual explanations for why a piece of code was written a certain way. These can be shown inline, on hover, or in a sidebar — like sticky notes for dev reasoning.",
   "version": "0.0.1",
   "engines": {
@@ -9,15 +10,25 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "why.helloWorld",
-        "title": "Hello World"
+        "command": "whyAnnotations.addAnnotation",
+        "title": "Add Why Annotation"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "whyAnnotations.addAnnotation",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -34,16 +45,20 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.99.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
+    "@types/uuid": "^10.0.0",
+    "@types/vscode": "^1.99.3",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
-    "eslint": "^9.23.0",
-    "esbuild": "^0.25.1",
-    "npm-run-all": "^4.1.5",
-    "typescript": "^5.8.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.25.1",
+    "eslint": "^9.23.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "uuid": "^11.1.0"
   }
 }
