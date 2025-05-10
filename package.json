@@ -19,6 +19,10 @@
       {
         "command": "whyAnnotations.addAnnotation",
         "title": "Add Why Annotation"
+      },
+      {
+        "command": "whyAnnotations.editAnnotation",
+        "title": "Edit Why Annotation"
       }
     ],
     "menus": {

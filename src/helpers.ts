@@ -92,15 +92,73 @@ export function saveAnnotations(
 export function formatAnnotationMarkdown(
   annotation: Annotation
 ): vscode.MarkdownString {
-  return new vscode.MarkdownString(
+  const markdown = new vscode.MarkdownString();
+  markdown.isTrusted = true;
+  markdown.supportHtml = true;
+
+  markdown.appendMarkdown(
     `💬 Why:\n${annotation.text}\n\n` +
-      (annotation.tags.length > 0
-        ? `Tags: ${annotation.tags.map((t) => `#${t}`).join(" ")}\n`
-        : "") +
-      `— Added by ${annotation.author} on ${new Date(
-        annotation.createdAt
-      ).toLocaleDateString()}`
+    (annotation.tags.length > 0
+      ? `Tags: ${annotation.tags.map((t) => `#${t}`).join(" ")}\n`
+      : "") +
+    `— Added by ${annotation.author} on ${new Date(
+      annotation.createdAt
+    ).toLocaleDateString()}`
   );
+
+  if (annotation.updatedAt) {
+    markdown.appendMarkdown(
+      `\n_(Last updated: ${new Date(annotation.updatedAt).toLocaleDateString()})_`
+    );
+  }
+
+  markdown.appendMarkdown(
+    `\n\n[Edit](command:whyAnnotations.editAnnotation?${encodeURIComponent(
+      JSON.stringify({ id: annotation.id })
+    )})`
+  );
+
+  return markdown;
+}
+
+/**
+ * Finds an annotation by its ID in the annotations array
+ * @param annotations - Array of all annotations
+ * @param id - ID of the annotation to find
+ * @returns The annotation if found, undefined otherwise
+ */
+export function findAnnotationById(
+  annotations: Annotation[],
+  id: string
+): Annotation | undefined {
+  return annotations.find((a) => a.id === id);
+}
+
+/**
+ * Updates an existing annotation with new content
+ * @param annotations - Array of all annotations
+ * @param id - ID of the annotation to update
+ * @param newText - New text content
+ * @param newTags - New tags array
+ * @returns A new array with the updated annotation
+ */
+export function updateAnnotation(
+  annotations: Annotation[],
+  id: string,
+  newText: string,
+  newTags: string[]
+): Annotation[] {
+  return annotations.map((a) => {
+    if (a.id === id) {
+      return {
+        ...a,
+        text: newText,
+        tags: newTags,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return a;
+  });
 }
 
 /**
@@ -142,13 +200,15 @@ export function updateDecorations(
  * Shows popup input boxes for entering annotation text and tags
  * @returns Promise resolving to annotation text and tags
  */
-export async function showPopupAnnotationInput(): Promise<
-  { text: string; tags: string[] } | undefined
-> {
+export async function showPopupAnnotationInput(
+  existingText?: string,
+  existingTags?: string[]
+): Promise<{ text: string; tags: string[] } | undefined> {
   // Show input box for the annotation text
   const text = await vscode.window.showInputBox({
     prompt: "Enter your explanation for why this code exists or works this way",
     placeHolder: "e.g., Workaround for browser bug #123",
+    value: existingText
   });
 
   if (!text) {
@@ -159,6 +219,7 @@ export async function showPopupAnnotationInput(): Promise<
   const tagsInput = await vscode.window.showInputBox({
     prompt: "Add tags (optional, comma-separated)",
     placeHolder: "e.g., performance, workaround, legacy",
+    value: existingTags ? existingTags.join(", ") : undefined
   });
 
   // Process tags: split by comma and trim whitespace

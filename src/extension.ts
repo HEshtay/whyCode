@@ -1,10 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
 import * as vscode from "vscode";
 import {
+  findAnnotationById,
   getGitAuthor,
   loadAnnotations,
   saveAnnotations,
   showPopupAnnotationInput,
+  updateAnnotation,
   updateDecorations
 } from "./helpers";
 import { Annotation } from "./interfaces/annotations";
@@ -119,7 +121,48 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(disposable);
+  // Register the command that handles editing existing annotations
+  const editCommand = vscode.commands.registerCommand(
+    "whyAnnotations.editAnnotation",
+    async (args: { id: string }) => {
+      // Get workspace and load annotations
+      const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+      const annotationsFile = loadAnnotations(workspaceFolder);
+
+      // Find the annotation to edit
+      const annotation = findAnnotationById(annotationsFile.annotations, args.id);
+      if (!annotation) {
+        vscode.window.showErrorMessage("Annotation not found");
+        return;
+      }
+
+      // Show input dialog with pre-filled content
+      const input = await showPopupAnnotationInput(annotation.text, annotation.tags);
+      if (!input) {
+        return; // User cancelled
+      }
+
+      // Update the annotation
+      annotationsFile.annotations = updateAnnotation(
+        annotationsFile.annotations,
+        args.id,
+        input.text,
+        input.tags
+      );
+
+      // Save changes and update UI
+      saveAnnotations(workspaceFolder, annotationsFile);
+
+      // Update decorations in all visible editors
+      vscode.window.visibleTextEditors.forEach(editor => {
+        updateDecorations(editor, annotationsFile.annotations, popupDecorationType);
+      });
+
+      vscode.window.showInformationMessage("Why Annotation updated successfully!");
+    }
+  );
+
+  context.subscriptions.push(disposable, editCommand);
 
   // Update decorations for active editor
   if (vscode.window.activeTextEditor) {

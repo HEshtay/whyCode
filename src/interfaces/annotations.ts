@@ -9,6 +9,7 @@ export interface Annotation {
   tags: string[];
   author: string;
   createdAt: string;
+  updatedAt?: string;
   id: string;
 }
 
