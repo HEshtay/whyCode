@@ -4,6 +4,7 @@ import {
   findAnnotationById,
   getGitAuthor,
   loadAnnotations,
+  removeAnnotation,
   saveAnnotations,
   showPopupAnnotationInput,
   updateAnnotation,
@@ -162,7 +163,49 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(disposable, editCommand);
+  // Register the command that handles deleting annotations
+  const deleteCommand = vscode.commands.registerCommand(
+    "whyAnnotations.deleteAnnotation",
+    async (args: { id: string }) => {
+      // Get workspace and load annotations
+      const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+      const annotationsFile = loadAnnotations(workspaceFolder);
+
+      // Find the annotation to delete
+      const annotation = findAnnotationById(annotationsFile.annotations, args.id);
+      if (!annotation) {
+        vscode.window.showErrorMessage("Annotation not found");
+        return;
+      }
+
+      // Show confirmation dialog
+      const result = await vscode.window.showWarningMessage(
+        "Are you sure you want to delete this annotation?",
+        { modal: true },
+        "Yes",
+        "No"
+      );
+
+      if (result !== "Yes") {
+        return; // User cancelled
+      }
+
+      // Remove the annotation
+      annotationsFile.annotations = removeAnnotation(annotationsFile.annotations, args.id);
+
+      // Save changes and update UI
+      saveAnnotations(workspaceFolder, annotationsFile);
+
+      // Update decorations in all visible editors
+      vscode.window.visibleTextEditors.forEach(editor => {
+        updateDecorations(editor, annotationsFile.annotations, popupDecorationType);
+      });
+
+      vscode.window.showInformationMessage("Why Annotation deleted successfully!");
+    }
+  );
+
+  context.subscriptions.push(disposable, editCommand, deleteCommand);
 
   // Update decorations for active editor
   if (vscode.window.activeTextEditor) {

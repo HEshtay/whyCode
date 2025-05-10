@@ -115,6 +115,8 @@ export function formatAnnotationMarkdown(
   markdown.appendMarkdown(
     `\n\n[Edit](command:whyAnnotations.editAnnotation?${encodeURIComponent(
       JSON.stringify({ id: annotation.id })
+    )}) | [Delete](command:whyAnnotations.deleteAnnotation?${encodeURIComponent(
+      JSON.stringify({ id: annotation.id })
     )})`
   );
 
@@ -142,6 +144,19 @@ export function findAnnotationById(
  * @param newTags - New tags array
  * @returns A new array with the updated annotation
  */
+/**
+ * Removes an annotation by its ID from the annotations array
+ * @param annotations - Array of all annotations
+ * @param id - ID of the annotation to remove
+ * @returns A new array with the annotation removed
+ */
+export function removeAnnotation(
+  annotations: Annotation[],
+  id: string
+): Annotation[] {
+  return annotations.filter(a => a.id !== id);
+}
+
 export function updateAnnotation(
   annotations: Annotation[],
   id: string,
