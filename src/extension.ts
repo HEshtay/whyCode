@@ -11,6 +11,7 @@ import {
   updateDecorations
 } from "./helpers";
 import { Annotation } from "./interfaces/annotations";
+import { AnnotationsTreeProvider } from "./providers/AnnotationsTreeProvider";
 
 // Declaration for popup decoration type
 let popupDecorationType: vscode.TextEditorDecorationType;
@@ -44,6 +45,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Log activation for debugging purposes
   console.log("Why Annotations extension is now active");
+
+  // Create tree view for annotations
+  const annotationsTreeProvider = new AnnotationsTreeProvider();
+  vscode.window.createTreeView('whyAnnotationsView', {
+    treeDataProvider: annotationsTreeProvider
+  });
 
   // Create popup decoration type (shows icon in gutter with hover)
   popupDecorationType = vscode.window.createTextEditorDecorationType({
@@ -115,6 +122,9 @@ export function activate(context: vscode.ExtensionContext) {
 
       // Show the annotation indicator in the editor
       updateDecorations(editor, annotationsFile.annotations, popupDecorationType);
+      
+      // Update tree view
+      annotationsTreeProvider.updateAnnotations(annotationsFile.annotations);
 
       vscode.window.showInformationMessage(
         "Why Annotation added successfully!"
@@ -125,13 +135,20 @@ export function activate(context: vscode.ExtensionContext) {
   // Register the command that handles editing existing annotations
   const editCommand = vscode.commands.registerCommand(
     "whyAnnotations.editAnnotation",
-    async (args: { id: string }) => {
+    async (treeItem: any) => {
+      // Handle different ways the ID might be passed:
+      // 1. As a string directly
+      // 2. As an object with id property (from hover)
+      // 3. As a tree item (from sidebar)
+      const id = typeof treeItem === 'string' 
+        ? treeItem 
+        : treeItem.id || treeItem.annotation?.id;
       // Get workspace and load annotations
       const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
       const annotationsFile = loadAnnotations(workspaceFolder);
 
       // Find the annotation to edit
-      const annotation = findAnnotationById(annotationsFile.annotations, args.id);
+      const annotation = findAnnotationById(annotationsFile.annotations, id);
       if (!annotation) {
         vscode.window.showErrorMessage("Annotation not found");
         return;
@@ -146,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
       // Update the annotation
       annotationsFile.annotations = updateAnnotation(
         annotationsFile.annotations,
-        args.id,
+        id,
         input.text,
         input.tags
       );
@@ -159,6 +176,9 @@ export function activate(context: vscode.ExtensionContext) {
         updateDecorations(editor, annotationsFile.annotations, popupDecorationType);
       });
 
+      // Update tree view
+      annotationsTreeProvider.updateAnnotations(annotationsFile.annotations);
+
       vscode.window.showInformationMessage("Why Annotation updated successfully!");
     }
   );
@@ -166,13 +186,20 @@ export function activate(context: vscode.ExtensionContext) {
   // Register the command that handles deleting annotations
   const deleteCommand = vscode.commands.registerCommand(
     "whyAnnotations.deleteAnnotation",
-    async (args: { id: string }) => {
+    async (treeItem: any) => {
+      // Handle different ways the ID might be passed:
+      // 1. As a string directly
+      // 2. As an object with id property (from hover)
+      // 3. As a tree item (from sidebar)
+      const id = typeof treeItem === 'string' 
+        ? treeItem 
+        : treeItem.id || treeItem.annotation?.id;
       // Get workspace and load annotations
       const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
       const annotationsFile = loadAnnotations(workspaceFolder);
 
       // Find the annotation to delete
-      const annotation = findAnnotationById(annotationsFile.annotations, args.id);
+      const annotation = findAnnotationById(annotationsFile.annotations, id);
       if (!annotation) {
         vscode.window.showErrorMessage("Annotation not found");
         return;
@@ -191,7 +218,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       // Remove the annotation
-      annotationsFile.annotations = removeAnnotation(annotationsFile.annotations, args.id);
+      annotationsFile.annotations = removeAnnotation(annotationsFile.annotations, id);
 
       // Save changes and update UI
       saveAnnotations(workspaceFolder, annotationsFile);
@@ -201,11 +228,45 @@ export function activate(context: vscode.ExtensionContext) {
         updateDecorations(editor, annotationsFile.annotations, popupDecorationType);
       });
 
+      // Update tree view
+      annotationsTreeProvider.updateAnnotations(annotationsFile.annotations);
+
       vscode.window.showInformationMessage("Why Annotation deleted successfully!");
     }
   );
 
-  context.subscriptions.push(disposable, editCommand, deleteCommand);
+  // Register reveal annotation command
+  const revealCommand = vscode.commands.registerCommand(
+    'whyAnnotations.revealAnnotation',
+    (annotation) => {
+      // Find the document for this annotation
+      const openFiles = vscode.workspace.textDocuments;
+      const doc = openFiles.find(doc => doc.uri.fsPath === annotation.filePath);
+      
+      if (doc) {
+        // Create selection from annotation range
+        const selection = new vscode.Selection(
+          annotation.range.startLine,
+          annotation.range.startCharacter,
+          annotation.range.endLine,
+          annotation.range.endCharacter
+        );
+
+        // Show the document and highlight the range
+        vscode.window.showTextDocument(doc, {
+          selection: selection,
+          preserveFocus: false
+        });
+      }
+    }
+  );
+
+  context.subscriptions.push(disposable, editCommand, deleteCommand, revealCommand);
+
+  // Update tree view when active editor changes
+  vscode.window.onDidChangeActiveTextEditor(() => {
+    annotationsTreeProvider.updateAnnotations(annotationsFile.annotations);
+  });
 
   // Update decorations for active editor
   if (vscode.window.activeTextEditor) {
