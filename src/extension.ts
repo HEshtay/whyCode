@@ -261,7 +261,29 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(disposable, editCommand, deleteCommand, revealCommand);
+  // Register command to reveal a specific line
+  const revealLineCommand = vscode.commands.registerCommand(
+    'whyAnnotations.revealLine',
+    (lineNumber: number) => {
+      const activeEditor = vscode.window.activeTextEditor;
+      if (activeEditor) {
+        // Create selection at the start of the line
+        const linePos = new vscode.Position(lineNumber, 0);
+        const selection = new vscode.Selection(linePos, linePos);
+
+        // Reveal the line
+        activeEditor.revealRange(
+          new vscode.Range(lineNumber, 0, lineNumber, 0),
+          vscode.TextEditorRevealType.InCenter
+        );
+        
+        // Move cursor to line
+        activeEditor.selection = selection;
+      }
+    }
+  );
+
+  context.subscriptions.push(disposable, editCommand, deleteCommand, revealCommand, revealLineCommand);
 
   // Update tree view when active editor changes
   vscode.window.onDidChangeActiveTextEditor(() => {

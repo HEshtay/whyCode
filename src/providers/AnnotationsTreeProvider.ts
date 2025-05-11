@@ -2,9 +2,54 @@ import * as vscode from 'vscode';
 import { Annotation } from '../interfaces/annotations';
 
 /**
- * Represents a tree item in the annotations view
+ * Base class for tree items in the annotations view
  */
-class AnnotationTreeItem extends vscode.TreeItem {
+abstract class BaseTreeItem extends vscode.TreeItem {
+  abstract getChildren(): BaseTreeItem[];
+}
+
+/**
+ * Represents a line number item in the tree view
+ */
+class LineNumberTreeItem extends BaseTreeItem {
+  constructor(
+    public readonly lineNumber: number,
+    private readonly annotations: Annotation[],
+    public readonly collapsibleState: vscode.TreeItemCollapsibleState
+  ) {
+    super(
+      `Line ${lineNumber + 1}`,
+      collapsibleState
+    );
+
+    // Add count of annotations as description
+    this.description = `${annotations.length} annotation${annotations.length > 1 ? 's' : ''}`;
+    
+    // Add tooltip showing preview of all annotations
+    const previews = annotations.map(a => a.text.split('\n')[0]).join('\n• ');
+    this.tooltip = new vscode.MarkdownString(`**Annotations**\n\n• ${previews}`);
+    this.tooltip.supportHtml = true;
+
+    // Command to reveal the line in editor
+    this.command = {
+      command: 'whyAnnotations.revealLine',
+      title: 'Reveal Line',
+      arguments: [lineNumber]
+    };
+
+    this.iconPath = new vscode.ThemeIcon('note');
+    this.contextValue = 'lineNumber';
+  }
+
+  getChildren(): BaseTreeItem[] {
+    return this.annotations.map(annotation => new AnnotationTreeItem(annotation));
+  }
+}
+
+/**
+ * Represents an annotation item in the tree view
+ */
+class AnnotationTreeItem extends BaseTreeItem {
   buttons?: {
     iconPath: vscode.ThemeIcon;
     tooltip: string;
@@ -16,15 +61,14 @@ class AnnotationTreeItem extends vscode.TreeItem {
   }[];
 
   constructor(
-    public readonly annotation: Annotation,
-    public readonly collapsibleState: vscode.TreeItemCollapsibleState
+    private readonly annotation: Annotation
   ) {
     super(
-      `Line ${annotation.range.startLine + 1}: ${annotation.text.split('\n')[0]}`,
-      collapsibleState
+      annotation.text.split('\n')[0],
+      vscode.TreeItemCollapsibleState.None
     );
 
-    // Add line number and preview as description
+    // Add tags as description
     this.description = annotation.tags.length > 0 ? annotation.tags.join(', ') : '';
     
     // Add tooltip showing full annotation
@@ -63,14 +107,18 @@ class AnnotationTreeItem extends vscode.TreeItem {
       }
     ];
   }
+
+  getChildren(): BaseTreeItem[] {
+    return []; // Annotation items have no children
+  }
 }
 
 /**
  * TreeDataProvider for showing annotations in the sidebar
  */
-export class AnnotationsTreeProvider implements vscode.TreeDataProvider<AnnotationTreeItem> {
-  private _onDidChangeTreeData: vscode.EventEmitter<AnnotationTreeItem | undefined | null | void> = new vscode.EventEmitter<AnnotationTreeItem | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<AnnotationTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
+export class AnnotationsTreeProvider implements vscode.TreeDataProvider<BaseTreeItem> {
+  private _onDidChangeTreeData: vscode.EventEmitter<BaseTreeItem | undefined | null | void> = new vscode.EventEmitter<BaseTreeItem | undefined | null | void>();
+  readonly onDidChangeTreeData: vscode.Event<BaseTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
   constructor(private annotations: Annotation[] = []) {}
 
@@ -85,19 +133,20 @@ export class AnnotationsTreeProvider implements vscode.TreeDataProvider<Annotati
   /**
    * Get tree item representation of the element
    */
-  getTreeItem(element: AnnotationTreeItem): vscode.TreeItem {
+  getTreeItem(element: BaseTreeItem): vscode.TreeItem {
     return element;
   }
 
   /**
    * Get children of the element
    */
-  getChildren(element?: AnnotationTreeItem): Thenable<AnnotationTreeItem[]> {
+  getChildren(element?: BaseTreeItem): Thenable<BaseTreeItem[]> {
+    // If element is provided, return its children
     if (element) {
-      return Promise.resolve([]); // No nested items
+      return Promise.resolve(element.getChildren());
     }
 
-    // Get active editor
+    // If no element (root), show line numbers
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
       return Promise.resolve([]);
@@ -108,16 +157,27 @@ export class AnnotationsTreeProvider implements vscode.TreeDataProvider<Annotati
       a => a.filePath === activeEditor.document.uri.fsPath
     );
 
-    // Sort by line number
-    const sortedAnnotations = currentFileAnnotations.sort(
-      (a, b) => a.range.startLine - b.range.startLine
-    );
+    // Group annotations by line number
+    const annotationsByLine = new Map<number, Annotation[]>();
+    currentFileAnnotations.forEach(annotation => {
+      const line = annotation.range.startLine;
+      if (!annotationsByLine.has(line)) {
+        annotationsByLine.set(line, []);
+      }
+      annotationsByLine.get(line)!.push(annotation);
+    });
 
-    // Convert to tree items
-    return Promise.resolve(
-      sortedAnnotations.map(
-        annotation => new AnnotationTreeItem(annotation, vscode.TreeItemCollapsibleState.None)
-      )
-    );
+    // Convert to line number tree items, sorted by line number
+    const items = Array.from(annotationsByLine.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([lineNumber, annotations]) => 
+        new LineNumberTreeItem(
+          lineNumber,
+          annotations,
+          annotations.length > 1 ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None
+        )
+      );
+
+    return Promise.resolve(items);
   }
 }
