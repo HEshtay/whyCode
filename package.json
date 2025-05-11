@@ -15,6 +15,24 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "whyAnnotations",
+          "title": "Why",
+          "icon": "resources/why-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "whyAnnotations": [
+        {
+          "id": "whyAnnotationsView",
+          "name": "Annotations",
+          "contextualTitle": "Why Annotations"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "whyAnnotations.addAnnotation",
@@ -22,7 +40,13 @@
       },
       {
         "command": "whyAnnotations.editAnnotation",
-        "title": "Edit Why Annotation"
+        "title": "Edit Why Annotation",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "whyAnnotations.deleteAnnotation",
+        "title": "Delete Why Annotation",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -30,6 +54,18 @@
         {
           "command": "whyAnnotations.addAnnotation",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "whyAnnotations.editAnnotation",
+          "when": "view == whyAnnotationsView && viewItem == annotation",
+          "group": "inline"
+        },
+        {
+          "command": "whyAnnotations.deleteAnnotation",
+          "when": "view == whyAnnotationsView && viewItem == annotation",
+          "group": "inline"
         }
       ]
     }
